@@ -10,7 +10,7 @@ soup = BeautifulSoup(res.text, 'html.parser')
 # title タグの文字列を取得する
 tables = soup.select(".tblCircleList")
 
-event_id = 5
+event_id = 8
 
 values1 = []
 for data in tables:
@@ -20,11 +20,11 @@ for data in tables:
         link = row.find("li").find("a")
 
         if (link):
-            name = link.get_text(strip=True)
+            name = re.sub(r'\'', '\\\'', link.get_text(strip=True))
             url = link['href']
         else:
             link = row.find("li")
-            name = link.get_text(strip=True)
+            name = re.sub(r'\'', '\\\'', link.get_text(strip=True))
             url = ""
 
 
@@ -37,9 +37,10 @@ for data in tables:
         sp = single_space.split("-")
         space_head = "'" + sp[0] + "'" if single_space else "null"
         space_body = "'" + sp[1] + "'" if single_space else "null"
-        text = "(null, " + str(event_id) + ", " + space_head + ", " + space_body + ", '" + name + "', " + ("null" if url == "" else "'" + url + "'") + ")"
+        text = "(null, " + str(event_id) + ", " + space_head + ", " + space_body + ", '" + name + "', '" + url + "')"
         values1.append(text)
-print("INSERT INTO dojin_event_space` VALUES")
+
+print("INSERT INTO `dojin_event_space`(id, event_id, space_head, space_number, circle_name,url) VALUES")
 print(','.join(values1) + ";")
 
 
@@ -53,7 +54,7 @@ soup = BeautifulSoup(res.text, 'html.parser')
 # title タグの文字列を取得する
 tables = soup.select(".tblCircleList")
 
-event_id = 6
+event_id = 9
 
 values1 = []
 for data in tables:
@@ -63,11 +64,11 @@ for data in tables:
         link = row.find("li").find("a")
 
         if (link):
-            name = link.get_text(strip=True)
+            name = re.sub(r'\'', '\\\'', link.get_text(strip=True))
             url = link['href']
         else:
             link = row.find("li")
-            name = link.get_text(strip=True)
+            name = re.sub(r'\'', '\\\'', link.get_text(strip=True))
             url = ""
 
         # 現行仕様はWEBのスペースの情報も併記されている
@@ -79,9 +80,9 @@ for data in tables:
         sp = single_space.split("-")
         space_head = "'" + sp[0] + "'" if single_space else "null"
         space_body = "'" + sp[1] + "'" if single_space else "null"
-        text = "(null, " + str(event_id) + ", " + space_head + ", " + space_body + ", '" + name + "', " + ("null" if url == "" else "'" + url + "'") + ")"
+        text = "(null, " + str(event_id) + ", " + space_head + ", " + space_body + ", '" + name + "', '" + url + "')"
         values1.append(text)
-print("INSERT INTO dojin_event_space` VALUES")
+print("INSERT INTO `dojin_event_space`(id, event_id, space_head, space_number, circle_name,url) VALUES")
 print(','.join(values1) + ";")
 
 
