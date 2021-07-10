@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 
-res = requests.get('https://www.m3net.jp/attendance/circle2021sR.php')
+res = requests.get('https://www.m3net.jp/attendance/circle2020f.php')
 
 # レスポンスの HTML から BeautifulSoup オブジェクトを作る
 soup = BeautifulSoup(res.text, 'html.parser')
@@ -29,7 +29,16 @@ for data in tables:
 
 
         # 現行仕様はWEBのスペースの情報も併記されている
-        single_space = re.search(r'^[A-Za-zあ-んア-ン]-[0-9]+', space).group()
+        single_space = re.search(r'[A-Za-zあ-んア-ン]	-[0-9]+', space)
+        if single_space is None:
+            continue
+        else:
+            single_space = re.search(r'[一-鿐]-[0-9]+$', space)
+
+        if single_space is None:
+            continue
+        single_space = single_space.group()
+
         # print(single_space)
         # print(name)
         # print(url)
