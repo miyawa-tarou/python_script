@@ -230,7 +230,7 @@ for index, row in df_stock.iterrows():
     df_one.to_csv("master/" + str(row["コード"]) + ".csv", index=False, encoding='utf_8_sig')
 
     row2 = df_one.tail(1).iloc[0]
-    if row2["ゴールデンクロス（25日）"] or (row2["ゴールデンクロス_A（終値）"] and row2["10日平均急上昇ポイント"]) or (row2["25日平均急上昇ポイント"] and row2["10日平均急上昇ポイント"]) or (-0.1 < row2["乖離率（75日平均）"] < 0 and row2["10日平均急上昇ポイント"]):
+    if row2["ゴールデンクロス（25日）"] or (row2["ゴールデンクロス_A（終値）"] and row2["10日平均急上昇ポイント"]) or (row2["25日平均急上昇ポイント"] and row2["10日平均急上昇ポイント"]) or (-0.1 < row2["乖離率（75日平均）"] < 0 and row2["10日平均急上昇ポイント"]) or (row2["75日平均上昇場"] and row2["25日平均急上昇ポイント"]):
         time.sleep(1)
         minkabu = "https://minkabu.jp/stock/" + str(row["コード"])
         res = requests.get(minkabu)
@@ -265,4 +265,5 @@ for index, row in df_stock.iterrows():
             print("25・10日平均急上昇ポイント")
         if -0.1 < row2["乖離率（75日平均）"] < 0 and row2["10日平均急上昇ポイント"]:
             print("低乖離率・10日平均急上昇ポイント")
-
+        if row2["75日平均上昇場"] and row2["25日平均急上昇ポイント"]:
+            print("75日平均上昇場・25日上昇")
