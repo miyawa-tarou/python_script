@@ -87,8 +87,8 @@ for index, row in df_stock.iterrows():
         data_price.append(row2["終値"])
 
         # 既に値があるものは解析不要
-        if "ゴールデンクロス（25日）" in row2 and not math.isnan(row2["ゴールデンクロス（25日）"]):
-            continue
+        # if "ゴールデンクロス（25日）" in row2 and not math.isnan(row2["ゴールデンクロス（25日）"]):
+        #     continue
 
         # 平均の上昇場
         average_25_Flag = False
@@ -185,6 +185,12 @@ for index, row in df_stock.iterrows():
             gxFlag2 = False
             gxFlag2A = False
 
+        divergence_rate_75 = (row2["終値"] - row2["75日平均"]) / row2["終値"]
+        divergence_rate_25 = (row2["終値"] - row2["25日平均"]) / row2["終値"]
+
+        df_one.loc[index2, "乖離率（25日平均）"] = divergence_rate_25
+        df_one.loc[index2, "乖離率（75日平均）"] = divergence_rate_75
+
         df_one.loc[index2, "ゴールデンクロス（25日）"] = gxFlag
         df_one.loc[index2, "ゴールデンクロス_A（25日）"] = gxFlagA
         df_one.loc[index2, "デッドクロス（25日）"] = dxFlag
@@ -208,23 +214,23 @@ for index, row in df_stock.iterrows():
         rate10 = None
         if (index2 + 10) < size and  not math.isnan(row2["終値"]) and not math.isnan(data_price[index2 + 10]):
              rate10 = (data_price[index2 + 10] - row2["終値"]) / row2["終値"]
-        # 20営業日後騰落率
-        rate20 = None
-        if (index2 + 20) < size and not math.isnan(row2["終値"]) and not math.isnan(data_price[index2 + 20]):
-            rate20 = (data_price[index2 + 20] - row2["終値"]) / row2["終値"]
-        # 40営業日後騰落率
-        rate40 = None
-        if (index2 + 40) < size and not math.isnan(row2["終値"]) and not math.isnan(data_price[index2 + 40]):
-             rate40 = (data_price[index2 + 40] - row2["終値"]) / row2["終値"]
+        # 25営業日後騰落率
+        rate25 = None
+        if (index2 + 25) < size and not math.isnan(row2["終値"]) and not math.isnan(data_price[index2 + 25]):
+            rate25 = (data_price[index2 + 25] - row2["終値"]) / row2["終値"]
+        # 75営業日後騰落率
+        rate75 = None
+        if (index2 + 75) < size and not math.isnan(row2["終値"]) and not math.isnan(data_price[index2 + 75]):
+             rate75 = (data_price[index2 + 75] - row2["終値"]) / row2["終値"]
         df_one.loc[index2, "5営業日後騰落率"] = rate5
         df_one.loc[index2, "10営業日後騰落率"] = rate10
-        df_one.loc[index2, "20営業日後騰落率"] = rate20
-        df_one.loc[index2, "40営業日後騰落率"] = rate40
+        df_one.loc[index2, "25営業日後騰落率"] = rate25
+        df_one.loc[index2, "75営業日後騰落率"] = rate75
 
     df_one.to_csv("master/" + str(row["コード"]) + ".csv", index=False, encoding='utf_8_sig')
 
     row2 = df_one.tail(1).iloc[0]
-    if row2["ゴールデンクロス（25日）"] or (row2["ゴールデンクロス_A（終値）"] and row2["10日平均急上昇ポイント"]) or (row2["25日平均急上昇ポイント"] and row2["10日平均急上昇ポイント"]):
+    if row2["ゴールデンクロス（25日）"] or (row2["ゴールデンクロス_A（終値）"] and row2["10日平均急上昇ポイント"]) or (row2["25日平均急上昇ポイント"] and row2["10日平均急上昇ポイント"]) or (-0.1 < row2["乖離率（75日平均）"] < 0 and row2["10日平均急上昇ポイント"]):
         time.sleep(1)
         minkabu = "https://minkabu.jp/stock/" + str(row["コード"])
         res = requests.get(minkabu)
@@ -257,5 +263,6 @@ for index, row in df_stock.iterrows():
             print("ゴールデンクロス_A（終値）and 10日平均急上昇ポイント")
         if row2["25日平均急上昇ポイント"] and row2["10日平均急上昇ポイント"]:
             print("25・10日平均急上昇ポイント")
-
+        if -0.1 < row2["乖離率（75日平均）"] < 0 and row2["10日平均急上昇ポイント"]:
+            print("低乖離率・10日平均急上昇ポイント")
 
