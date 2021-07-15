@@ -15,6 +15,9 @@ ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_5) AppleWebKit/537.36 (KHTML,
 headers = {'User-Agent': ua}
 
 for index, row in df_stock.iterrows():
+    if row["コード"] <= 7318:
+        continue
+
     for year in reversed(range(1990, 2021)):
         # url = "https://kabuoji3.com/stock/" + str(row["コード"]) + "/" + str(year) + "/"
 
