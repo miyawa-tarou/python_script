@@ -95,8 +95,10 @@ for index, row in df_stock.iterrows():
         if not math.isnan(row2["25日平均"]) and not math.isnan(data_25[index2 - 1]):
             average_25_Flag =  (row2["25日平均"] - data_25[index2 - 1]) > 0
         average_75_Flag = False
-        if not math.isnan(row2["75日平均"]) and not math.isnan(data_75[index2 - 1]):
-            average_75_Flag =  (row2["75日平均"] - data_75[index2 - 1]) > 0
+        average_75_ratio = None
+        if not math.isnan(row2["75日平均"]) and not math.isnan(data_75[index2 - 1]) and not math.isnan(data_75[index2 - 2]):
+            average_75_Flag = (row2["75日平均"] - data_75[index2 - 1]) > 0
+            average_75_ratio = ((row2["75日平均"] - data_75[index2 - 1]) - (data_75[index2 - 1] - data_75[index2 - 2])) / row2["75日平均"]
 
         # 傾きが上がった瞬間を確認
         gradientFlag = False
@@ -199,6 +201,7 @@ for index, row in df_stock.iterrows():
         df_one.loc[index2, "デッドクロス（終値）"] = dxFlag2
         df_one.loc[index2, "25日平均上昇場"] = average_25_Flag
         df_one.loc[index2, "75日平均上昇場"] = average_75_Flag
+        df_one.loc[index2, "75日平均変動率"] = average_75_ratio
         df_one.loc[index2, "25日平均急上昇ポイント"] = gradientFlag
         df_one.loc[index2, "25日平均上昇陰りポイント"] = gradientFlagB
         df_one.loc[index2, "10日平均急上昇ポイント"] = gradientFlagC
@@ -230,40 +233,38 @@ for index, row in df_stock.iterrows():
     df_one.to_csv("master/" + str(row["コード"]) + ".csv", index=False, encoding='utf_8_sig')
 
     row2 = df_one.tail(1).iloc[0]
-    if row2["ゴールデンクロス（25日）"] or (row2["ゴールデンクロス_A（終値）"] and row2["10日平均急上昇ポイント"]) or (row2["25日平均急上昇ポイント"] and row2["10日平均急上昇ポイント"]) or (-0.1 < row2["乖離率（75日平均）"] < 0 and row2["10日平均急上昇ポイント"]) or (row2["75日平均上昇場"] and row2["25日平均急上昇ポイント"]):
-        time.sleep(1)
-        minkabu = "https://minkabu.jp/stock/" + str(row["コード"])
-        res = requests.get(minkabu)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        tag_items = soup.select('h2:-soup-contains("目標株価") ~ div')
-        target = [t.get_text(strip=True) for t in tag_items][0][:-1].replace(",", "")
-        target = int(target) if target.isdigit() or target != "---" else 0 # ない場合は計算上0とする
+    if row2["75日平均上昇場"] and row2["75日平均変動率"] > 0 and row2["25日平均上昇場"]:
+        if row2["ゴールデンクロス（25日）"] or row2["25日平均急上昇ポイント"] or row2["乖離率（75日平均）"] > 0.02:
+            time.sleep(1)
+            minkabu = "https://minkabu.jp/stock/" + str(row["コード"])
+            res = requests.get(minkabu)
+            soup = BeautifulSoup(res.text, 'html.parser')
+            tag_items = soup.select('h2:-soup-contains("目標株価") ~ div')
+            target = [t.get_text(strip=True) for t in tag_items][0][:-1].replace(",", "")
+            target = int(target) if target.isdigit() or target != "---" else 0  # ない場合は計算上0とする
 
-        if target / row2["終値"] < 1.1:
-            continue
+            if target / row2["終値"] < 1.1:
+                continue
 
-        tag_items = soup.select('p:-soup-contains("株価診断") ~ span')
-        diagnosis = [t.get_text(strip=True) for t in tag_items][0]
-        if diagnosis == "割高":
-            continue
-        tag_items = soup.select('p:-soup-contains("アナリスト") ~ span')
-        analyst = [t.get_text(strip=True) for t in tag_items][0]
+            tag_items = soup.select('p:-soup-contains("株価診断") ~ span')
+            diagnosis = [t.get_text(strip=True) for t in tag_items][0]
+            if diagnosis == "割高":
+                continue
+            tag_items = soup.select('p:-soup-contains("アナリスト") ~ span')
+            analyst = [t.get_text(strip=True) for t in tag_items][0]
 
-        print("https://finance.yahoo.co.jp/quote/" + str(row["コード"]) + ".T")
-        print(minkabu)
+            print("https://finance.yahoo.co.jp/quote/" + str(row["コード"]) + ".T")
+            print(minkabu)
 
-        print("現在株価：" + str(row2["終値"]))
-        print("目標株価：" + str(target))
-        print("診断：" + diagnosis)
-        print("アナリスト：" + analyst)
+            print("現在株価：" + str(row2["終値"]))
+            print("目標株価：" + str(target))
+            print("診断：" + diagnosis)
+            print("アナリスト：" + analyst)
+            print("75日平均傾き変動率：" + str(row2["75日平均変動率"] * 100))
 
-        if row2["ゴールデンクロス（25日）"]:
-            print("ゴールデンクロス（25日）")
-        if row2["ゴールデンクロス_A（終値）"] and row2["10日平均急上昇ポイント"]:
-            print("ゴールデンクロス_A（終値）and 10日平均急上昇ポイント")
-        if row2["25日平均急上昇ポイント"] and row2["10日平均急上昇ポイント"]:
-            print("25・10日平均急上昇ポイント")
-        if -0.1 < row2["乖離率（75日平均）"] < 0 and row2["10日平均急上昇ポイント"]:
-            print("低乖離率・10日平均急上昇ポイント")
-        if row2["75日平均上昇場"] and row2["25日平均急上昇ポイント"]:
-            print("75日平均上昇場・25日上昇")
+            if row2["ゴールデンクロス（25日）"]:
+                print("ゴールデンクロス（25日）")
+            if row2["25日平均急上昇ポイント"]:
+                print("25日平均急上昇ポイント")
+            if row2["乖離率（75日平均）"] > 0.02:
+                print("高乖離率" + str(row2["乖離率（75日平均）"]))
