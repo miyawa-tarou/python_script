@@ -243,7 +243,7 @@ for index, row in df_stock.iterrows():
             target = [t.get_text(strip=True) for t in tag_items][0][:-1].replace(",", "")
             target = int(target) if target.isdigit() or target != "---" else 0  # ない場合は計算上0とする
 
-            if target / row2["終値"] < 1.1:
+            if target / row2["終値"] < 1.2:
                 continue
 
             tag_items = soup.select('p:-soup-contains("株価診断") ~ span')
