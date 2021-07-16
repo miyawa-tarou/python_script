@@ -10,7 +10,6 @@ df_stock = df[(df["市場・商品区分"] == "市場第二部（内国株）") 
 
 
 for index, row in df_stock.iterrows():
-    df_all = pd.DataFrame(index=[], columns=["日付", "始値", "高値", "安値", "終値", "出来高", "終値調整値"])
 
     df_master = pd.read_csv("master/" + str(row["コード"]) + ".csv")
 
@@ -40,4 +39,4 @@ for index, row in df_stock.iterrows():
     df_master = df_master.drop_duplicates(subset="日付", keep='last')
     df_master = df_master.sort_values(by="日付")
 
-    df_all.to_csv("merged/" + str(row["コード"]) + ".csv", index=False, encoding='utf_8_sig')
+    df_master.to_csv("merged/" + str(row["コード"]) + ".csv", index=False, encoding='utf_8_sig')
