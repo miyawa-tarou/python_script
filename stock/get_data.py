@@ -15,7 +15,7 @@ ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_5) AppleWebKit/537.36 (KHTML,
 headers = {'User-Agent': ua}
 
 for index, row in df_stock.iterrows():
-    if row["コード"] <= 7318:
+    if row["コード"] <= 7578:
         continue
 
     for year in reversed(range(1990, 2021)):
@@ -32,7 +32,7 @@ for index, row in df_stock.iterrows():
         with open(filename, 'wb') as saveFile:
             saveFile.write(response.content)
 
-        time.sleep(10)
+        time.sleep(5)
 
     print(row["コード"])
 
