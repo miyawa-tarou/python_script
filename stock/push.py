@@ -15,7 +15,9 @@ code_list = []
 
 today = datetime.date.today()
 tomorrow = today + datetime.timedelta(days=1)
-today_str = today.strftime("%Y-%m-%d")
+start = today + datetime.timedelta(days=-4)
+
+today_str = start.strftime("%Y-%m-%d")
 tomorrow_str = tomorrow.strftime("%Y-%m-%d")
 
 print(today_str)
@@ -24,7 +26,7 @@ print(tomorrow_str)
 for index, row in df_stock.iterrows():
 
     code = str(row["コード"]) + ".T"
-    if len(code_list) < 3:
+    if len(code_list) < 2:
         code_list.append(code)
         continue
 
