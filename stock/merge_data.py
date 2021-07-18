@@ -20,6 +20,13 @@ for index, row in df_stock.iterrows():
             print(row["コード"])
             break
 
+        if os.path.getsize(file) == 9:
+            with open(file, mode='r') as f:
+                text = f.read()
+                if text == "エラー":
+                    print(text)
+                    break
+
         df_one = pd.read_csv(file, header=1, encoding='shift_jis')
         for index2, row2 in df_one.iterrows():
             if row2["終値調整値"] != row2["終値"]:
