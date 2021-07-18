@@ -1,3 +1,4 @@
+import datetime
 import math
 import os
 import time
@@ -7,40 +8,48 @@ from bs4 import BeautifulSoup
 
 import pandas as pd
 
+# 全データを再解析する場合はTrueにする（項目増やしたときとか）
+re_analyze_flag = False
+
+# 株一覧の取得
 df = pd.read_excel("data_j.xls")
 df_stock = df[(df["市場・商品区分"] == "市場第二部（内国株）") |
          (df["市場・商品区分"] == "市場第一部（内国株）") |
          (df["市場・商品区分"] == "マザーズ（内国株）") |
          (df["市場・商品区分"] == "JASDAQ(スタンダード・内国株）")][["コード", "銘柄名"]]
 
-point1 = []
-point2 = []
-point3 = []
-point4 = []
+pickup_columns = ["コード", "社名", "", "", "", "始値", "高値", "安値", "終値", "目標株価", "診断", "アナリスト"]
+df_pickup = pd.DataFrame(index=[], columns=pickup_columns)
+
 
 def get_average(data, num):
     length = len(end_data)
     d = data[length - num:length]
     return sum(d) / len(d)
 
-for index, row in df_stock.iterrows():
-    df_all = pd.DataFrame(index=[], columns=["日付", "始値", "高値", "安値", "終値", "出来高", "終値調整値", "5日平均", "10日平均", "25日平均", "75日平均", "200日平均"])
 
+for index, row in df_stock.iterrows():
     end_data = []
+
+    # 1社ごとのデータの読み込み
     file = "master/" + str(row["コード"]) + ".csv"
     if not os.path.isfile(file):
         print("file not found:" + row["コード"])
         continue
-
     df_one = pd.read_csv(file, encoding='utf_8_sig')
-
     if len(df_one.index) < 1:
         print("no data:" + str(row["コード"]))
         continue
 
+    # 日平均などを出す
     for index2, row2 in df_one.iterrows():
+        # 古いのは再解析不要
+        start = datetime.date(2020, 7, 1)
+        if row2["日付"] < start and not re_analyze_flag:
+            continue
+
         # 既に値があるものは解析不要
-        if "200日平均" in row2 and not math.isnan(row2["200日平均"]):
+        if "200日平均" in row2 and not math.isnan(row2["200日平均"]) and not re_analyze_flag:
             continue
 
         end_data.append(row2["終値"])
@@ -66,34 +75,36 @@ for index, row in df_stock.iterrows():
         df_one.loc[index2, "75日平均"] = average_75
         df_one.loc[index2, "200日平均"] = average_200
 
+    # 一旦保存する
     df_one.to_csv("averaged/" + str(row["コード"]) + ".csv", index=False, encoding='utf_8_sig')
 
-
-    data_1 = []
+    # 平均データを呼び出せるように保持する
     data_5 = []
     data_10 = []
     data_25 = []
     data_75 = []
     data_price = []
 
-    gxFlag = True
-
+    # 平均データも含めた解析
     df_one = pd.read_csv("averaged/" + str(row["コード"]) + ".csv", encoding='utf_8_sig')
     for index2, row2 in df_one.iterrows():
-        data_1.append(row2["終値"])
+        # 古いのは再解析不要
+        start = datetime.date(2020, 7, 1)
+        if row2["日付"] < start and not re_analyze_flag:
+            continue
+        # 既に値があるものは解析不要
+        if "ゴールデンクロス（25日）" in row2 and not math.isnan(row2["ゴールデンクロス（25日）"]) and not re_analyze_flag:
+            continue
+
         data_10.append(row2["10日平均"])
         data_25.append(row2["25日平均"])
         data_75.append(row2["75日平均"])
         data_price.append(row2["終値"])
 
-        # 既に値があるものは解析不要
-        # if "ゴールデンクロス（25日）" in row2 and not math.isnan(row2["ゴールデンクロス（25日）"]):
-        #     continue
-
         # 平均の上昇場
         average_25_Flag = False
         if not math.isnan(row2["25日平均"]) and not math.isnan(data_25[index2 - 1]):
-            average_25_Flag =  (row2["25日平均"] - data_25[index2 - 1]) > 0
+            average_25_Flag = (row2["25日平均"] - data_25[index2 - 1]) > 0
         average_75_Flag = False
         average_75_ratio = None
         if not math.isnan(row2["75日平均"]) and not math.isnan(data_75[index2 - 1]) and not math.isnan(data_75[index2 - 2]):
@@ -166,8 +177,8 @@ for index, row in df_stock.iterrows():
                 gxFlag2A = False
 
             for i in range(3):
-                if not math.isnan(data_1[index2 - (i + 1)]) and not math.isnan(data_25[index2 - (i + 1)]):
-                    if data_1[index2 - (i + 1)] > data_25[index2 - (i + 1)]:
+                if not math.isnan(data_price[index2 - (i + 1)]) and not math.isnan(data_25[index2 - (i + 1)]):
+                    if data_price[index2 - (i + 1)] > data_25[index2 - (i + 1)]:
                         gxFlag2 = False
                         gxFlag2A = False
                     else:
@@ -207,7 +218,6 @@ for index, row in df_stock.iterrows():
         df_one.loc[index2, "10日平均急上昇ポイント"] = gradientFlagC
 
     for index2, row2 in df_one.iterrows():
-
         size = len(data_price)
         # 5営業日後騰落率
         rate5 = None
@@ -224,14 +234,21 @@ for index, row in df_stock.iterrows():
         # 75営業日後騰落率
         rate75 = None
         if (index2 + 75) < size and not math.isnan(row2["終値"]) and not math.isnan(data_price[index2 + 75]):
-             rate75 = (data_price[index2 + 75] - row2["終値"]) / row2["終値"]
+            rate75 = (data_price[index2 + 75] - row2["終値"]) / row2["終値"]
         df_one.loc[index2, "5営業日後騰落率"] = rate5
         df_one.loc[index2, "10営業日後騰落率"] = rate10
         df_one.loc[index2, "25営業日後騰落率"] = rate25
         df_one.loc[index2, "75営業日後騰落率"] = rate75
 
+        # 10日平均での75営業日後騰落率（日々の誤差を見ない））
+        rate75_2 = None
+        if (index2 + 75) < size and not math.isnan(data_10[index2]) and not math.isnan(data_10[index2 + 75]):
+            rate75_2 = (data_10[index2 + 75] - data_10[index2]) / data_10[index2]
+        df_one.loc[index2, "75営業日後騰落率（10日平均）"] = rate75_2
+
     df_one.to_csv("master/" + str(row["コード"]) + ".csv", index=False, encoding='utf_8_sig')
 
+    # 直近データを利用してのスクリーニング
     row2 = df_one.tail(1).iloc[0]
     if row2["75日平均上昇場"] and row2["75日平均変動率"] > 0 and row2["25日平均上昇場"]:
         if row2["ゴールデンクロス（25日）"] or row2["25日平均急上昇ポイント"] or row2["乖離率（75日平均）"] > 0.02:
@@ -268,3 +285,11 @@ for index, row in df_stock.iterrows():
                 print("25日平均急上昇ポイント")
             if row2["乖離率（75日平均）"] > 0.02:
                 print("高乖離率" + str(row2["乖離率（75日平均）"]))
+
+            s = pd.Series(
+                [str(row2["コード"]), "", "", "" ,row2["始値"], row2["高値"], row2["安値"], row2["終値"], str(target), diagnosis, analyst],
+                index=pickup_columns)
+            df_pickup = df_pickup.append(s, ignore_index=True)
+
+now = datetime.datetime.now()
+df_pickup.to_csv("analyzed/daily_" + now.strftime("Y-m-d") + ".csv", index=False, encoding='utf_8_sig')
