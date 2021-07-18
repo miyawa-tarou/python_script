@@ -250,46 +250,46 @@ for index, row in df_stock.iterrows():
 
     # 直近データを利用してのスクリーニング
     row2 = df_one.tail(1).iloc[0]
-    if row2["75日平均上昇場"] and row2["75日平均変動率"] > 0 and row2["25日平均上昇場"]:
-        if row2["ゴールデンクロス（25日）"] or row2["25日平均急上昇ポイント"] or row2["乖離率（75日平均）"] > 0.02:
-            time.sleep(1)
-            minkabu = "https://minkabu.jp/stock/" + str(row["コード"])
-            res = requests.get(minkabu)
-            soup = BeautifulSoup(res.text, 'html.parser')
-            tag_items = soup.select('h2:-soup-contains("目標株価") ~ div')
-            target = [t.get_text(strip=True) for t in tag_items][0][:-1].replace(",", "")
-            target = int(target) if target.isdigit() or target != "---" else 0  # ない場合は計算上0とする
 
-            if target / row2["終値"] < 1.2:
-                continue
+    if row2["ゴールデンクロス（25日）"] or (row2["75日平均上昇場"] and row2["25日平均急上昇ポイント"]) or (row2["75日平均上昇場"] and row2["乖離率（75日平均）"] > 0.03):
+        time.sleep(1)
+        minkabu = "https://minkabu.jp/stock/" + str(row["コード"])
+        res = requests.get(minkabu)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        tag_items = soup.select('h2:-soup-contains("目標株価") ~ div')
+        target = [t.get_text(strip=True) for t in tag_items][0][:-1].replace(",", "")
+        target = int(target) if target.isdigit() or target != "---" else 0  # ない場合は計算上0とする
 
-            tag_items = soup.select('p:-soup-contains("株価診断") ~ span')
-            diagnosis = [t.get_text(strip=True) for t in tag_items][0]
-            if diagnosis == "割高":
-                continue
-            tag_items = soup.select('p:-soup-contains("アナリスト") ~ span')
-            analyst = [t.get_text(strip=True) for t in tag_items][0]
+        if row2["ゴールデンクロス（25日）"] or target / row2["終値"] < 1.2:
+            continue
 
-            print("https://finance.yahoo.co.jp/quote/" + str(row["コード"]) + ".T")
-            print(minkabu)
+        tag_items = soup.select('p:-soup-contains("株価診断") ~ span')
+        diagnosis = [t.get_text(strip=True) for t in tag_items][0]
+        if diagnosis == "割高":
+            continue
+        tag_items = soup.select('p:-soup-contains("アナリスト") ~ span')
+        analyst = [t.get_text(strip=True) for t in tag_items][0]
 
-            print("現在株価：" + str(row2["終値"]))
-            print("目標株価：" + str(target))
-            print("診断：" + diagnosis)
-            print("アナリスト：" + analyst)
-            print("75日平均傾き変動率：" + str(row2["75日平均変動率"] * 100))
+        print("https://finance.yahoo.co.jp/quote/" + str(row["コード"]) + ".T")
+        print(minkabu)
 
-            if row2["ゴールデンクロス（25日）"]:
-                print("ゴールデンクロス（25日）")
-            if row2["25日平均急上昇ポイント"]:
-                print("25日平均急上昇ポイント")
-            if row2["乖離率（75日平均）"] > 0.02:
-                print("高乖離率" + str(row2["乖離率（75日平均）"]))
+        print("現在株価：" + str(row2["終値"]))
+        print("目標株価：" + str(target))
+        print("診断：" + diagnosis)
+        print("アナリスト：" + analyst)
+        print("75日平均傾き変動率：" + str(row2["75日平均変動率"] * 100))
 
-            s = pd.Series(
-                [str(row2["コード"]), "", "", "" ,row2["始値"], row2["高値"], row2["安値"], row2["終値"], str(target), diagnosis, analyst],
-                index=pickup_columns)
-            df_pickup = df_pickup.append(s, ignore_index=True)
+        if row2["ゴールデンクロス（25日）"]:
+            print("ゴールデンクロス（25日）")
+        if row2["75日平均上昇場"] and row2["25日平均急上昇ポイント"]:
+            print("25日平均急上昇ポイント")
+        if row2["75日平均上昇場"] and row2["乖離率（75日平均）"] > 0.03:
+            print("高乖離率" + str(row2["乖離率（75日平均）"]))
+
+        s = pd.Series(
+            [str(row2["コード"]), "", "", "" ,row2["始値"], row2["高値"], row2["安値"], row2["終値"], str(target), diagnosis, analyst],
+            index=pickup_columns)
+        df_pickup = df_pickup.append(s, ignore_index=True)
 
 now = datetime.datetime.now()
 df_pickup.to_csv("analyzed/daily_" + now.strftime("Y-m-d") + ".csv", index=False, encoding='utf_8_sig')
