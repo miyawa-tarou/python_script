@@ -45,11 +45,11 @@ for index, row in df_stock.iterrows():
     for index2, row2 in df_one.iterrows():
         # 古いのは再解析不要
         start = datetime.date(2020, 7, 1)
-        if row2["日付"] < start and not re_analyze_flag:
+        if not re_analyze_flag and pd.to_datetime(row2["日付"]) < start:
             continue
 
         # 既に値があるものは解析不要
-        if "200日平均" in row2 and not math.isnan(row2["200日平均"]) and not re_analyze_flag:
+        if not re_analyze_flag and "200日平均" in row2 and not math.isnan(row2["200日平均"]):
             continue
 
         end_data.append(row2["終値"])
@@ -90,7 +90,7 @@ for index, row in df_stock.iterrows():
     for index2, row2 in df_one.iterrows():
         # 古いのは再解析不要
         start = datetime.date(2020, 7, 1)
-        if row2["日付"] < start and not re_analyze_flag:
+        if not re_analyze_flag and pd.to_datetime(row2["日付"]) < start:
             continue
         # 既に値があるものは解析不要
         if "ゴールデンクロス（25日）" in row2 and not math.isnan(row2["ゴールデンクロス（25日）"]) and not re_analyze_flag:
@@ -250,7 +250,6 @@ for index, row in df_stock.iterrows():
 
     # 直近データを利用してのスクリーニング
     row2 = df_one.tail(1).iloc[0]
-
     if row2["ゴールデンクロス（25日）"] or (row2["75日平均上昇場"] and row2["25日平均急上昇ポイント"]) or (row2["75日平均上昇場"] and row2["乖離率（75日平均）"] > 0.03):
         time.sleep(1)
         minkabu = "https://minkabu.jp/stock/" + str(row["コード"])
@@ -287,7 +286,7 @@ for index, row in df_stock.iterrows():
             print("高乖離率" + str(row2["乖離率（75日平均）"]))
 
         s = pd.Series(
-            [str(row2["コード"]), "", "", "" ,row2["始値"], row2["高値"], row2["安値"], row2["終値"], str(target), diagnosis, analyst],
+            [str(row2["コード"]), row["銘柄名"], row2["ゴールデンクロス（25日）"], row2["75日平均上昇場"] and row2["25日平均急上昇ポイント"], row2["75日平均上昇場"] and row2["乖離率（75日平均）"] ,row2["始値"], row2["高値"], row2["安値"], row2["終値"], str(target), diagnosis, analyst],
             index=pickup_columns)
         df_pickup = df_pickup.append(s, ignore_index=True)
 
