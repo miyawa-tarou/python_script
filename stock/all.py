@@ -5,6 +5,7 @@ import time
 
 import requests
 from bs4 import BeautifulSoup
+import re
 
 import pandas as pd
 
@@ -18,7 +19,7 @@ df_stock = df[(df["市場・商品区分"] == "市場第二部（内国株）") 
          (df["市場・商品区分"] == "マザーズ（内国株）") |
          (df["市場・商品区分"] == "JASDAQ(スタンダード・内国株）")][["コード", "銘柄名"]]
 
-pickup_columns = ["コード", "社名", "", "", "", "始値", "高値", "安値", "終値", "目標株価", "診断", "アナリスト"]
+pickup_columns = ["コード", "社名", "始値", "高値", "安値", "終値", "目標株価", "理論株価", "出来高", "60営業日前株価", "60営業日前株価フラグ", "診断", "アナリスト","シグナル", "Yahoo!", "みんかぶ", "予報"]
 df_pickup = pd.DataFrame(index=[], columns=pickup_columns)
 
 
@@ -43,16 +44,17 @@ for index, row in df_stock.iterrows():
 
     # 日平均などを出す
     for index2, row2 in df_one.iterrows():
+
+        end_data.append(row2["終値"])
+
         # 古いのは再解析不要
         start = datetime.date(2020, 7, 1)
         if not re_analyze_flag and pd.to_datetime(row2["日付"]) < start:
             continue
-
         # 既に値があるものは解析不要
         if not re_analyze_flag and "200日平均" in row2 and not math.isnan(row2["200日平均"]):
             continue
 
-        end_data.append(row2["終値"])
         average_5 = None
         if len(end_data) >= 5:
             average_5 = get_average(end_data, 5)
@@ -88,18 +90,19 @@ for index, row in df_stock.iterrows():
     # 平均データも含めた解析
     df_one = pd.read_csv("averaged/" + str(row["コード"]) + ".csv", encoding='utf_8_sig')
     for index2, row2 in df_one.iterrows():
-        # 古いのは再解析不要
-        start = datetime.date(2020, 7, 1)
-        if not re_analyze_flag and pd.to_datetime(row2["日付"]) < start:
-            continue
-        # 既に値があるものは解析不要
-        if "ゴールデンクロス（25日）" in row2 and not math.isnan(row2["ゴールデンクロス（25日）"]) and not re_analyze_flag:
-            continue
 
         data_10.append(row2["10日平均"])
         data_25.append(row2["25日平均"])
         data_75.append(row2["75日平均"])
         data_price.append(row2["終値"])
+
+        # 古いのは再解析不要
+        start = datetime.date(2020, 7, 1)
+        if not re_analyze_flag and pd.to_datetime(row2["日付"]).date() < start:
+            continue
+        # 既に値があるものは解析不要
+        if not re_analyze_flag and "ゴールデンクロス（25日）" in row2 and row2["ゴールデンクロス（25日）"]:
+            continue
 
         # 平均の上昇場
         average_25_Flag = False
@@ -129,6 +132,14 @@ for index, row in df_stock.iterrows():
             # この傾き係数は変える余地あり
             if gradientA > 0.002 and (gradientA - gradientB) > 0.0010 and gradientB < 0.001:
                 gradientFlagC = True
+
+        # N日前株価
+        price40ago = None
+        price60ago = None
+        if index2 >= 60 and not math.isnan(data_price[index2 - 60]):
+            price60ago = data_price[index2 - 60]
+        if index2 >= 40 and not math.isnan(data_price[index2 - 40]):
+            price40ago = data_price[index2 - 40]
 
         # ゴールデンクロスを確認
         gxFlag = True
@@ -204,6 +215,9 @@ for index, row in df_stock.iterrows():
         df_one.loc[index2, "乖離率（25日平均）"] = divergence_rate_25
         df_one.loc[index2, "乖離率（75日平均）"] = divergence_rate_75
 
+        df_one.loc[index2, "40営業日前株価"] = price40ago
+        df_one.loc[index2, "60営業日前株価"] = price60ago
+
         df_one.loc[index2, "ゴールデンクロス（25日）"] = gxFlag
         df_one.loc[index2, "ゴールデンクロス_A（25日）"] = gxFlagA
         df_one.loc[index2, "デッドクロス（25日）"] = dxFlag
@@ -218,6 +232,15 @@ for index, row in df_stock.iterrows():
         df_one.loc[index2, "10日平均急上昇ポイント"] = gradientFlagC
 
     for index2, row2 in df_one.iterrows():
+
+        # 古いのは再解析不要
+        start = datetime.date(2020, 7, 1)
+        if not re_analyze_flag and pd.to_datetime(row2["日付"]).date() < start:
+            continue
+        # 既に値があるものは解析不要
+        if not re_analyze_flag and "ゴールデンクロス（25日）" in row2 and row2["ゴールデンクロス（25日）"]:
+            continue
+
         size = len(data_price)
         # 5営業日後騰落率
         rate5 = None
@@ -250,8 +273,9 @@ for index, row in df_stock.iterrows():
 
     # 直近データを利用してのスクリーニング
     row2 = df_one.tail(1).iloc[0]
-    if row2["ゴールデンクロス（25日）"] or (row2["75日平均上昇場"] and row2["25日平均急上昇ポイント"]) or (row2["75日平均上昇場"] and row2["乖離率（75日平均）"] > 0.03):
-        time.sleep(1)
+
+    if "25日平均上昇場" in row2 and "75日平均上昇場" in row2 and "25日平均上昇陰りポイント" in row2 and not row2["25日平均上昇場"] and not row2[
+        "75日平均上昇場"] and not row2["25日平均上昇陰りポイント"] and - 0.18 < row2["乖離率（75日平均）"] < 0.08 and row2["出来高"] > 100000:
         minkabu = "https://minkabu.jp/stock/" + str(row["コード"])
         res = requests.get(minkabu)
         soup = BeautifulSoup(res.text, 'html.parser')
@@ -259,7 +283,7 @@ for index, row in df_stock.iterrows():
         target = [t.get_text(strip=True) for t in tag_items][0][:-1].replace(",", "")
         target = int(target) if target.isdigit() or target != "---" else 0  # ない場合は計算上0とする
 
-        if row2["ゴールデンクロス（25日）"] or target / row2["終値"] < 1.2:
+        if target / row2["終値"] < 1.2:
             continue
 
         tag_items = soup.select('p:-soup-contains("株価診断") ~ span')
@@ -269,26 +293,40 @@ for index, row in df_stock.iterrows():
         tag_items = soup.select('p:-soup-contains("アナリスト") ~ span')
         analyst = [t.get_text(strip=True) for t in tag_items][0]
 
-        print("https://finance.yahoo.co.jp/quote/" + str(row["コード"]) + ".T")
+        url_yahoo = "https://finance.yahoo.co.jp/quote/" + str(row["コード"]) + ".T"
+        url_yoho = "https://kabuyoho.jp/reportTarget?bcode=" + str(row["コード"])
+
+        res = requests.get(url_yoho)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        tag_items = soup.select('p:-soup-contains("シグナル") ~ p')
+        signal = [t.get_text(strip=True) for t in tag_items][0]
+
+        tag_items = soup.select('th:-soup-contains("理論株価(PBR基準)") ~ td')
+        theory_a = [t.get_text(strip=True) for t in tag_items][0]
+        theory = re.findall(r'^([0-9,]+).+円.+', theory_a)
+        if len(theory) > 0:
+            theory = theory[0].replace(",", "")
+            if int(theory) / row2["終値"] < 1.1:
+                continue
+        else:
+            theory = ""
+
+        print(url_yahoo)
         print(minkabu)
+        print(url_yoho)
+
 
         print("現在株価：" + str(row2["終値"]))
         print("目標株価：" + str(target))
+        print("理論株価：" + str(theory))
         print("診断：" + diagnosis)
         print("アナリスト：" + analyst)
+        print("シグナル：" + signal)
         print("75日平均傾き変動率：" + str(row2["75日平均変動率"] * 100))
 
-        if row2["ゴールデンクロス（25日）"]:
-            print("ゴールデンクロス（25日）")
-        if row2["75日平均上昇場"] and row2["25日平均急上昇ポイント"]:
-            print("25日平均急上昇ポイント")
-        if row2["75日平均上昇場"] and row2["乖離率（75日平均）"] > 0.03:
-            print("高乖離率" + str(row2["乖離率（75日平均）"]))
-
         s = pd.Series(
-            [str(row2["コード"]), row["銘柄名"], row2["ゴールデンクロス（25日）"], row2["75日平均上昇場"] and row2["25日平均急上昇ポイント"], row2["75日平均上昇場"] and row2["乖離率（75日平均）"] ,row2["始値"], row2["高値"], row2["安値"], row2["終値"], str(target), diagnosis, analyst],
+            [str(row["コード"]), row["銘柄名"],row2["始値"], row2["高値"], row2["安値"], row2["終値"], str(target), str(theory), str(row2["出来高"]), str(row2["60営業日前株価"]), sagariFlag, diagnosis, analyst, signal, url_yahoo, minkabu, url_yoho],
             index=pickup_columns)
         df_pickup = df_pickup.append(s, ignore_index=True)
-
 now = datetime.datetime.now()
-df_pickup.to_csv("analyzed/daily_" + now.strftime("Y-m-d") + ".csv", index=False, encoding='utf_8_sig')
+df_pickup.to_csv("analyzed/daily_" + now.strftime("%Y-%m-%d") + ".csv", index=False, encoding='utf_8_sig')

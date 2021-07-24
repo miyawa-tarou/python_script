@@ -15,7 +15,7 @@ code_list = []
 
 today = datetime.date.today()
 tomorrow = today + datetime.timedelta(days=1)
-start = today + datetime.timedelta(days=-4)
+start = today + datetime.timedelta(days=-2)
 
 today_str = start.strftime("%Y-%m-%d")
 tomorrow_str = tomorrow.strftime("%Y-%m-%d")
@@ -26,8 +26,8 @@ print(tomorrow_str)
 for index, row in df_stock.iterrows():
 
     code = str(row["コード"]) + ".T"
+    code_list.append(code)
     if len(code_list) < 2:
-        code_list.append(code)
         continue
 
     tickers = " ".join(code_list)
@@ -54,4 +54,4 @@ for index, row in df_stock.iterrows():
 
         df_one.to_csv("master/" + file_code + ".csv", index=False, encoding='utf_8_sig')
     code_list = []
-    time.sleep(10)
+    time.sleep(8)
