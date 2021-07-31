@@ -15,11 +15,12 @@ re_analyze_flag = False
 # 株一覧の取得
 df = pd.read_excel("data_j.xls")
 df_stock = df[(df["市場・商品区分"] == "市場第二部（内国株）") |
-         (df["市場・商品区分"] == "市場第一部（内国株）") |
-         (df["市場・商品区分"] == "マザーズ（内国株）") |
-         (df["市場・商品区分"] == "JASDAQ(スタンダード・内国株）")][["コード", "銘柄名"]]
+              (df["市場・商品区分"] == "市場第一部（内国株）") |
+              (df["市場・商品区分"] == "マザーズ（内国株）") |
+              (df["市場・商品区分"] == "JASDAQ(スタンダード・内国株）")][["コード", "銘柄名"]]
 
-pickup_columns = ["コード", "社名", "始値", "高値", "安値", "終値", "目標株価", "理論株価", "出来高", "60営業日前株価", "60営業日前株価フラグ", "診断", "アナリスト","シグナル", "Yahoo!", "みんかぶ", "予報"]
+pickup_columns = ["コード", "社名", "始値", "高値", "安値", "終値", "目標株価", "理論株価", "出来高", "60営業日前株価比率", "60営業日前株価フラグ", "診断",
+                  "アナリスト", "シグナル", "Yahoo!", "みんかぶ", "予報"]
 df_pickup = pd.DataFrame(index=[], columns=pickup_columns)
 
 
@@ -49,7 +50,7 @@ for index, row in df_stock.iterrows():
 
         # 古いのは再解析不要
         start = datetime.date(2020, 7, 1)
-        if not re_analyze_flag and pd.to_datetime(row2["日付"]) < start:
+        if not re_analyze_flag and pd.to_datetime(row2["日付"]).date() < start:
             continue
         # 既に値があるものは解析不要
         if not re_analyze_flag and "200日平均" in row2 and not math.isnan(row2["200日平均"]):
@@ -89,6 +90,19 @@ for index, row in df_stock.iterrows():
 
     # 平均データも含めた解析
     df_one = pd.read_csv("averaged/" + str(row["コード"]) + ".csv", encoding='utf_8_sig')
+    df_one = df_one.astype({"ゴールデンクロス（25日）": 'bool',
+                   "ゴールデンクロス_A（25日）": 'bool',
+                   "デッドクロス（25日）": 'bool',
+                   "ゴールデンクロス（終値）": 'bool',
+                   "ゴールデンクロス_A（終値）": 'bool',
+                   "デッドクロス（終値）": 'bool',
+                   "25日平均上昇場": 'bool',
+                   "75日平均上昇場": 'bool',
+                   "75日平均変動率": 'bool',
+                   "25日平均急上昇ポイント": 'bool',
+                   "25日平均上昇陰りポイント": 'bool',
+                   "10日平均急上昇ポイント": 'bool'})
+
     for index2, row2 in df_one.iterrows():
 
         data_10.append(row2["10日平均"])
@@ -97,11 +111,11 @@ for index, row in df_stock.iterrows():
         data_price.append(row2["終値"])
 
         # 古いのは再解析不要
-        start = datetime.date(2020, 7, 1)
+        start = datetime.date(2021, 1, 1)
         if not re_analyze_flag and pd.to_datetime(row2["日付"]).date() < start:
             continue
         # 既に値があるものは解析不要
-        if not re_analyze_flag and "ゴールデンクロス（25日）" in row2 and row2["ゴールデンクロス（25日）"]:
+        if not re_analyze_flag and "乖離率（75日平均）" in row2 and not math.isnan(row2["乖離率（75日平均）"]):
             continue
 
         # 平均の上昇場
@@ -110,14 +124,17 @@ for index, row in df_stock.iterrows():
             average_25_Flag = (row2["25日平均"] - data_25[index2 - 1]) > 0
         average_75_Flag = False
         average_75_ratio = None
-        if not math.isnan(row2["75日平均"]) and not math.isnan(data_75[index2 - 1]) and not math.isnan(data_75[index2 - 2]):
+        if not math.isnan(row2["75日平均"]) and not math.isnan(data_75[index2 - 1]) and not math.isnan(
+                data_75[index2 - 2]):
             average_75_Flag = (row2["75日平均"] - data_75[index2 - 1]) > 0
-            average_75_ratio = ((row2["75日平均"] - data_75[index2 - 1]) - (data_75[index2 - 1] - data_75[index2 - 2])) / row2["75日平均"]
+            average_75_ratio = ((row2["75日平均"] - data_75[index2 - 1]) - (data_75[index2 - 1] - data_75[index2 - 2])) / \
+                               row2["75日平均"]
 
         # 傾きが上がった瞬間を確認
         gradientFlag = False
         gradientFlagB = False
-        if not math.isnan(row2["25日平均"]) and not math.isnan(data_25[index2 - 1]) and not math.isnan(data_25[index2 - 2]):
+        if not math.isnan(row2["25日平均"]) and not math.isnan(data_25[index2 - 1]) and not math.isnan(
+                data_25[index2 - 2]):
             gradientA = (row2["25日平均"] - data_25[index2 - 1]) / row2["25日平均"]
             gradientB = (data_25[index2 - 1] - data_25[index2 - 2]) / data_25[index2 - 1]
             # この傾き係数は変える余地あり
@@ -126,7 +143,8 @@ for index, row in df_stock.iterrows():
             if gradientA < gradientB:
                 gradientFlagB = True
         gradientFlagC = False
-        if not math.isnan(row2["10日平均"]) and not math.isnan(data_10[index2 - 1]) and not math.isnan(data_10[index2 - 2]):
+        if not math.isnan(row2["10日平均"]) and not math.isnan(data_10[index2 - 1]) and not math.isnan(
+                data_10[index2 - 2]):
             gradientA = (row2["10日平均"] - data_10[index2 - 1]) / row2["10日平均"]
             gradientB = (data_10[index2 - 1] - data_10[index2 - 2]) / data_10[index2 - 1]
             # この傾き係数は変える余地あり
@@ -245,11 +263,11 @@ for index, row in df_stock.iterrows():
         # 5営業日後騰落率
         rate5 = None
         if (index2 + 5) < size and not math.isnan(row2["終値"]) and not math.isnan(data_price[index2 + 5]):
-             rate5 = (data_price[index2 + 5] - row2["終値"]) / row2["終値"]
+            rate5 = (data_price[index2 + 5] - row2["終値"]) / row2["終値"]
         # 10営業日後騰落率
         rate10 = None
-        if (index2 + 10) < size and  not math.isnan(row2["終値"]) and not math.isnan(data_price[index2 + 10]):
-             rate10 = (data_price[index2 + 10] - row2["終値"]) / row2["終値"]
+        if (index2 + 10) < size and not math.isnan(row2["終値"]) and not math.isnan(data_price[index2 + 10]):
+            rate10 = (data_price[index2 + 10] - row2["終値"]) / row2["終値"]
         # 25営業日後騰落率
         rate25 = None
         if (index2 + 25) < size and not math.isnan(row2["終値"]) and not math.isnan(data_price[index2 + 25]):
@@ -273,7 +291,7 @@ for index, row in df_stock.iterrows():
 
     # 直近データを利用してのスクリーニング
     row2 = df_one.tail(1).iloc[0]
-
+    # -0.02 > row2["乖離率（75日平均）"] > -0.15:
     if "25日平均上昇場" in row2 and "75日平均上昇場" in row2 and "25日平均上昇陰りポイント" in row2 and not row2["25日平均上昇場"] and not row2[
         "75日平均上昇場"] and not row2["25日平均上昇陰りポイント"] and - 0.18 < row2["乖離率（75日平均）"] < 0.08 and row2["出来高"] > 100000:
         minkabu = "https://minkabu.jp/stock/" + str(row["コード"])
@@ -311,10 +329,14 @@ for index, row in df_stock.iterrows():
         else:
             theory = ""
 
+        sagariFlag = False
+        sagariRate = (row2["終値"] - row2["60営業日前株価"]) / row2["終値"]
+        if sagariRate > -0.18:
+            sagariFlag = True
+
         print(url_yahoo)
         print(minkabu)
         print(url_yoho)
-
 
         print("現在株価：" + str(row2["終値"]))
         print("目標株価：" + str(target))
@@ -325,7 +347,8 @@ for index, row in df_stock.iterrows():
         print("75日平均傾き変動率：" + str(row2["75日平均変動率"] * 100))
 
         s = pd.Series(
-            [str(row["コード"]), row["銘柄名"],row2["始値"], row2["高値"], row2["安値"], row2["終値"], str(target), str(theory), str(row2["出来高"]), str(row2["60営業日前株価"]), sagariFlag, diagnosis, analyst, signal, url_yahoo, minkabu, url_yoho],
+            [str(row["コード"]), row["銘柄名"], row2["始値"], row2["高値"], row2["安値"], row2["終値"], str(target), str(theory),
+             str(row2["出来高"]), str(sagariRate), sagariFlag, diagnosis, analyst, signal, url_yahoo, minkabu, url_yoho],
             index=pickup_columns)
         df_pickup = df_pickup.append(s, ignore_index=True)
 now = datetime.datetime.now()
