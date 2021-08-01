@@ -19,7 +19,7 @@ df_stock = df[(df["市場・商品区分"] == "市場第二部（内国株）") 
               (df["市場・商品区分"] == "マザーズ（内国株）") |
               (df["市場・商品区分"] == "JASDAQ(スタンダード・内国株）")][["コード", "銘柄名"]]
 
-pickup_columns = ["コード", "社名", "始値", "高値", "安値", "終値", "目標株価", "理論株価", "出来高", "60営業日前株価比率", "60営業日前株価フラグ", "診断",
+pickup_columns = ["コード", "社名", "始値", "高値", "安値", "終値", "目標株価", "理論株価", "出来高", "出来高変化率", "60営業日前株価比率", "60営業日前株価フラグ", "診断",
                   "アナリスト", "シグナル", "Yahoo!", "みんかぶ", "予報"]
 df_pickup = pd.DataFrame(index=[], columns=pickup_columns)
 
@@ -87,6 +87,7 @@ for index, row in df_stock.iterrows():
     data_25 = []
     data_75 = []
     data_price = []
+    data_volume = []
 
     # 平均データも含めた解析
     df_one = pd.read_csv("averaged/" + str(row["コード"]) + ".csv", encoding='utf_8_sig')
@@ -109,6 +110,7 @@ for index, row in df_stock.iterrows():
         data_25.append(row2["25日平均"])
         data_75.append(row2["75日平均"])
         data_price.append(row2["終値"])
+        data_volume.append(row2["出来高"])
 
         # 古いのは再解析不要
         start = datetime.date(2021, 1, 1)
@@ -230,12 +232,17 @@ for index, row in df_stock.iterrows():
         divergence_rate_75 = (row2["終値"] - row2["75日平均"]) / row2["終値"]
         divergence_rate_25 = (row2["終値"] - row2["25日平均"]) / row2["終値"]
 
+        volume_raise_rate = None
+        if not math.isnan(data_volume[index2 - 1]) and not data_volume[index2 - 1] == 0:
+            volume_raise_rate = row2["出来高"] / data_volume[index2 - 1]
+
         df_one.loc[index2, "乖離率（25日平均）"] = divergence_rate_25
         df_one.loc[index2, "乖離率（75日平均）"] = divergence_rate_75
 
         df_one.loc[index2, "40営業日前株価"] = price40ago
         df_one.loc[index2, "60営業日前株価"] = price60ago
 
+        df_one.loc[index2, "出来高変化率"] = volume_raise_rate
         df_one.loc[index2, "ゴールデンクロス（25日）"] = gxFlag
         df_one.loc[index2, "ゴールデンクロス_A（25日）"] = gxFlagA
         df_one.loc[index2, "デッドクロス（25日）"] = dxFlag
@@ -344,11 +351,11 @@ for index, row in df_stock.iterrows():
         print("診断：" + diagnosis)
         print("アナリスト：" + analyst)
         print("シグナル：" + signal)
-        print("75日平均傾き変動率：" + str(row2["75日平均変動率"] * 100))
+        print("出来高変化率：" + str(row2["出来高変化率"]))
 
         s = pd.Series(
             [str(row["コード"]), row["銘柄名"], row2["始値"], row2["高値"], row2["安値"], row2["終値"], str(target), str(theory),
-             str(row2["出来高"]), str(sagariRate), sagariFlag, diagnosis, analyst, signal, url_yahoo, minkabu, url_yoho],
+             str(row2["出来高"]), str(row2["出来高変化率"]), str(sagariRate), sagariFlag, diagnosis, analyst, signal, url_yahoo, minkabu, url_yoho],
             index=pickup_columns)
         df_pickup = df_pickup.append(s, ignore_index=True)
 now = datetime.datetime.now()
