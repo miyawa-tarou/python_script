@@ -54,4 +54,4 @@ for index, row in df_stock.iterrows():
 
         df_one.to_csv("master/" + file_code + ".csv", index=False, encoding='utf_8_sig')
     code_list = []
-    time.sleep(8)
+    time.sleep(6)
