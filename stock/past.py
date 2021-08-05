@@ -5,6 +5,7 @@ import math
 import os
 import datetime
 
+from concurrent import futures
 import pandas as pd
 import statistics
 
@@ -22,12 +23,12 @@ count_data2 = {}
 c1 = 0
 c2 = 0
 
-for index, row in df_stock.iterrows():
-    code = str(row["コード"])
+
+def analyze(code, name):
 
     file = "master/" + code + ".csv"
     if not os.path.isfile(file):
-        continue
+        return
 
     stock_prices = []
 
@@ -80,6 +81,16 @@ for index, row in df_stock.iterrows():
             #     count_data2["ほげ2"] = []
             # if "25日平均上昇場" in row2 and "25日平均上昇陰りポイント" in row2 and not row2["25日平均上昇場"] and not row2["25日平均上昇陰りポイント"]:
             #     count_data2["ほげ2"].append(row2["40営業日後騰落率"])
+
+future_list = []
+with futures.ThreadPoolExecutor(max_workers=8) as executor:
+    for index, row in df_stock.iterrows():
+        future_list.append(executor.submit(analyze, code=str(row["コード"])))
+    for future in futures.as_completed(future_list):
+        try:
+            data = future.result()
+        except Exception as exc:
+            print('generated an exception: %s' % (exc))
 
 print(c1)
 print(c2)

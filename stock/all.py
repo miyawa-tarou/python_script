@@ -6,6 +6,7 @@ import time
 import requests
 from bs4 import BeautifulSoup
 import re
+from concurrent import futures
 
 import pandas as pd
 
@@ -25,23 +26,23 @@ df_pickup = pd.DataFrame(index=[], columns=pickup_columns)
 
 
 def get_average(data, num):
-    length = len(end_data)
+    length = len(data)
     d = data[length - num:length]
     return sum(d) / len(d)
 
-
-for index, row in df_stock.iterrows():
-    end_data = []
+def analyze(code, name):
 
     # 1社ごとのデータの読み込み
-    file = "master/" + str(row["コード"]) + ".csv"
+    file = "master/" + code + ".csv"
     if not os.path.isfile(file):
-        print("file not found:" + row["コード"])
-        continue
+        print("file not found:" + code)
+        return
     df_one = pd.read_csv(file, encoding='utf_8_sig')
     if len(df_one.index) < 1:
-        print("no data:" + str(row["コード"]))
-        continue
+        print("no data:" + str(code))
+        return
+
+    end_data = []
 
     # 日平均などを出す
     for index2, row2 in df_one.iterrows():
@@ -79,7 +80,7 @@ for index, row in df_stock.iterrows():
         df_one.loc[index2, "200日平均"] = average_200
 
     # 一旦保存する
-    df_one.to_csv("averaged/" + str(row["コード"]) + ".csv", index=False, encoding='utf_8_sig')
+    df_one.to_csv("averaged/" + str(code) + ".csv", index=False, encoding='utf_8_sig')
 
     # 平均データを呼び出せるように保持する
     data_5 = []
@@ -90,7 +91,7 @@ for index, row in df_stock.iterrows():
     data_volume = []
 
     # 平均データも含めた解析
-    df_one = pd.read_csv("averaged/" + str(row["コード"]) + ".csv", encoding='utf_8_sig')
+    df_one = pd.read_csv("averaged/" + str(code) + ".csv", encoding='utf_8_sig')
     df_one = df_one.astype({"ゴールデンクロス（25日）": 'bool',
                    "ゴールデンクロス_A（25日）": 'bool',
                    "デッドクロス（25日）": 'bool',
@@ -294,14 +295,14 @@ for index, row in df_stock.iterrows():
             rate75_2 = (data_10[index2 + 75] - data_10[index2]) / data_10[index2]
         df_one.loc[index2, "75営業日後騰落率（10日平均）"] = rate75_2
 
-    df_one.to_csv("master/" + str(row["コード"]) + ".csv", index=False, encoding='utf_8_sig')
+    df_one.to_csv("master/" + str(code) + ".csv", index=False, encoding='utf_8_sig')
 
     # 直近データを利用してのスクリーニング
     row2 = df_one.tail(1).iloc[0]
     # -0.02 > row2["乖離率（75日平均）"] > -0.15:
     if "25日平均上昇場" in row2 and "75日平均上昇場" in row2 and "25日平均上昇陰りポイント" in row2 and not row2["25日平均上昇場"] and not row2[
         "75日平均上昇場"] and not row2["25日平均上昇陰りポイント"] and - 0.18 < row2["乖離率（75日平均）"] < 0.08 and row2["出来高"] > 100000:
-        minkabu = "https://minkabu.jp/stock/" + str(row["コード"])
+        minkabu = "https://minkabu.jp/stock/" + str(code)
         res = requests.get(minkabu)
         soup = BeautifulSoup(res.text, 'html.parser')
         tag_items = soup.select('h2:-soup-contains("目標株価") ~ div')
@@ -309,17 +310,17 @@ for index, row in df_stock.iterrows():
         target = int(target) if target.isdigit() or target != "---" else 0  # ない場合は計算上0とする
 
         if target / row2["終値"] < 1.2:
-            continue
+            return
 
         tag_items = soup.select('p:-soup-contains("株価診断") ~ span')
         diagnosis = [t.get_text(strip=True) for t in tag_items][0]
         if diagnosis == "割高":
-            continue
+            return
         tag_items = soup.select('p:-soup-contains("アナリスト") ~ span')
         analyst = [t.get_text(strip=True) for t in tag_items][0]
 
-        url_yahoo = "https://finance.yahoo.co.jp/quote/" + str(row["コード"]) + ".T"
-        url_yoho = "https://kabuyoho.jp/reportTarget?bcode=" + str(row["コード"])
+        url_yahoo = "https://finance.yahoo.co.jp/quote/" + str(code) + ".T"
+        url_yoho = "https://kabuyoho.jp/reportTarget?bcode=" + str(code)
 
         res = requests.get(url_yoho)
         soup = BeautifulSoup(res.text, 'html.parser')
@@ -332,7 +333,7 @@ for index, row in df_stock.iterrows():
         if len(theory) > 0:
             theory = theory[0].replace(",", "")
             if int(theory) / row2["終値"] < 1.1:
-                continue
+                return
         else:
             theory = ""
 
@@ -354,9 +355,21 @@ for index, row in df_stock.iterrows():
         print("出来高変化率：" + str(row2["出来高変化率"]))
 
         s = pd.Series(
-            [str(row["コード"]), row["銘柄名"], row2["始値"], row2["高値"], row2["安値"], row2["終値"], str(target), str(theory),
+            [str(code), name, row2["始値"], row2["高値"], row2["安値"], row2["終値"], str(target), str(theory),
              str(row2["出来高"]), str(row2["出来高変化率"]), str(sagariRate), sagariFlag, diagnosis, analyst, signal, url_yahoo, minkabu, url_yoho],
             index=pickup_columns)
+        global df_pickup
         df_pickup = df_pickup.append(s, ignore_index=True)
+
+future_list = []
+with futures.ThreadPoolExecutor(max_workers=12) as executor:
+    for index, row in df_stock.iterrows():
+        future_list.append(executor.submit(analyze, code=str(row["コード"]), name=row["銘柄名"]))
+    for future in futures.as_completed(future_list):
+        try:
+            data = future.result()
+        except Exception as exc:
+            print('generated an exception: %s' % (exc))
+
 now = datetime.datetime.now()
 df_pickup.to_csv("analyzed/daily_" + now.strftime("%Y-%m-%d") + ".csv", index=False, encoding='utf_8_sig')
