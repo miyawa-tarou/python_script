@@ -1,7 +1,6 @@
 import datetime
 import math
 import os
-import time
 
 import requests
 from bs4 import BeautifulSoup
@@ -123,19 +122,30 @@ def analyze(code, name):
 
         # 平均の上昇場
         average_25_Flag = False
+        average_25_ratio = None
         if not math.isnan(row2["25日平均"]) and not math.isnan(data_25[index2 - 1]):
             average_25_Flag = (row2["25日平均"] - data_25[index2 - 1]) > 0
+            average_25_ratio = ((row2["25日平均"] - data_25[index2 - 1]) - (data_25[index2 - 1] - data_25[index2 - 2])) / row2["25日平均"]
         average_75_Flag = False
         average_75_ratio = None
         if not math.isnan(row2["75日平均"]) and not math.isnan(data_75[index2 - 1]) and not math.isnan(
                 data_75[index2 - 2]):
             average_75_Flag = (row2["75日平均"] - data_75[index2 - 1]) > 0
-            average_75_ratio = ((row2["75日平均"] - data_75[index2 - 1]) - (data_75[index2 - 1] - data_75[index2 - 2])) / \
-                               row2["75日平均"]
+            average_75_ratio = ((row2["75日平均"] - data_75[index2 - 1]) - (data_75[index2 - 1] - data_75[index2 - 2])) / row2["75日平均"]
 
         # 傾きが上がった瞬間を確認
-        gradientFlag = False
-        gradientFlagB = False
+        gradient25changeRatio = None
+        gradient75changeRatio = None
+        if not math.isnan(row2["25日平均"]) and not math.isnan(data_25[index2 - 1]) and not math.isnan(data_25[index2 - 2]):
+            gradientA = (row2["25日平均"] - data_25[index2 - 1]) / row2["25日平均"]
+            gradientB = (data_25[index2 - 1] - data_25[index2 - 2]) / data_25[index2 - 1]
+            gradient25changeRatio = gradientA - gradientB
+        if not math.isnan(row2["75日平均"]) and not math.isnan(data_75[index2 - 1]) and not math.isnan(
+                data_75[index2 - 2]):
+            gradientA = (row2["75日平均"] - data_75[index2 - 1]) / row2["75日平均"]
+            gradientB = (data_75[index2 - 1] - data_75[index2 - 2]) / data_75[index2 - 1]
+            gradient75changeRatio = gradientA - gradientB
+
         if not math.isnan(row2["25日平均"]) and not math.isnan(data_25[index2 - 1]) and not math.isnan(
                 data_25[index2 - 2]):
             gradientA = (row2["25日平均"] - data_25[index2 - 1]) / row2["25日平均"]
@@ -252,10 +262,10 @@ def analyze(code, name):
         df_one.loc[index2, "デッドクロス（終値）"] = dxFlag2
         df_one.loc[index2, "25日平均上昇場"] = average_25_Flag
         df_one.loc[index2, "75日平均上昇場"] = average_75_Flag
+        df_one.loc[index2, "25日平均変動率"] = average_25_ratio
         df_one.loc[index2, "75日平均変動率"] = average_75_ratio
-        df_one.loc[index2, "25日平均急上昇ポイント"] = gradientFlag
-        df_one.loc[index2, "25日平均上昇陰りポイント"] = gradientFlagB
-        df_one.loc[index2, "10日平均急上昇ポイント"] = gradientFlagC
+        df_one.loc[index2, "25日平均変動率差"] = gradient25changeRatio
+        df_one.loc[index2, "75日平均変動率差"] = gradient75changeRatio
 
     for index2, row2 in df_one.iterrows():
 
@@ -300,8 +310,7 @@ def analyze(code, name):
     # 直近データを利用してのスクリーニング
     row2 = df_one.tail(1).iloc[0]
     # -0.02 > row2["乖離率（75日平均）"] > -0.15:
-    if "25日平均上昇場" in row2 and "75日平均上昇場" in row2 and "25日平均上昇陰りポイント" in row2 and not row2["25日平均上昇場"] and not row2[
-        "75日平均上昇場"] and not row2["25日平均上昇陰りポイント"] and - 0.18 < row2["乖離率（75日平均）"] < 0.08 and row2["出来高"] > 100000:
+    if "25日平均上昇場" in row2 and "75日平均上昇場" in row2 and not row2["25日平均上昇場"] and not row2["75日平均上昇場"] and - 0.18 < row2["乖離率（75日平均）"] < 0.08 and row2["出来高"] > 100000:
         minkabu = "https://minkabu.jp/stock/" + str(code)
         res = requests.get(minkabu)
         soup = BeautifulSoup(res.text, 'html.parser')
@@ -362,7 +371,7 @@ def analyze(code, name):
         df_pickup = df_pickup.append(s, ignore_index=True)
 
 future_list = []
-with futures.ThreadPoolExecutor(max_workers=12) as executor:
+with futures.ThreadPoolExecutor(max_workers=96) as executor:
     for index, row in df_stock.iterrows():
         future_list.append(executor.submit(analyze, code=str(row["コード"]), name=row["銘柄名"]))
     for future in futures.as_completed(future_list):
