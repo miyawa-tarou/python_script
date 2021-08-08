@@ -34,14 +34,14 @@ def analyze(code):
     # 日付,始値,高値,安値,終値,出来高,終値調整値,5日平均,10日平均,25日平均,75日平均,200日平均
     # ゴールデンクロス（25日）,ゴールデンクロス_A（25日）,デッドクロス（25日）,ゴールデンクロス（終値）,ゴールデンクロス_A（終値）,デッドクロス（終値）
     # 25日平均上昇場,75日平均上昇場,25日平均急上昇ポイント,25日平均上昇陰りポイント,10日平均急上昇ポイント
-    # 5営業日後騰落率,10営業日後騰落率,20営業日後騰落率,40営業日後騰落率,乖離率（25日平均）,乖離率（75日平均）
+    # 5営業日後騰落率,10営業日後騰落率,20営業日後騰落率,75営業日後騰落率,乖離率（25日平均）,乖離率（75日平均）
     # 25営業日後騰落率,75営業日後騰落率,75日平均変動率,75営業日後騰落率（10日平均）,40営業日前株価,60営業日前株価,出来高変化率,25日平均変動率,25日平均変動率差,75日平均変動率差
     df_one = pd.read_csv(file, encoding='utf_8_sig')
     for index2, row2 in df_one.iterrows():
         stock_prices.append(row2["終値"])
 
         # 騰落率データがないと結果を照合できない & 出来高が小さいのは避けるためスキップ
-        if not "40営業日後騰落率" in row2 or math.isnan(row2["40営業日後騰落率"]) and row2["出来高"] < 100000:
+        if not "75営業日後騰落率" in row2 or math.isnan(row2["75営業日後騰落率"]) or not "出来高" in row2 or row2["出来高"] < 100000:
             continue
 
         # 1年分のみの解析
@@ -49,43 +49,58 @@ def analyze(code):
         # if pd.to_datetime(row2["日付"]).date() < start:
         #     continue
 
-        count_data["all"].append(row2["40営業日後騰落率"])
-        for column in ["25日平均上昇場", "75日平均上昇場"]:
-            if column in row2 and row2[column]:
-                count_data[column].append(row2["40営業日後騰落率"])
+        count_data["all"].append(row2["75営業日後騰落率"])
 
-        if "乖離率（75日平均）" in row2 and row2["乖離率（75日平均）"] < 0.08 :
-            count_data["all2"].append(row2["40営業日後騰落率"])
+        if row2["乖離率（25日平均）"] > - 100:
+            count_data["all2"].append(row2["75営業日後騰落率"])
 
+            for column in ["25日平均上昇場", "75日平均上昇場"]:
+                if column in row2 and row2[column]:
+                    count_data[column].append(row2["75営業日後騰落率"])
+
+            for column in ["乖離率（25日平均）", "乖離率（75日平均）"]:
+                if column in row2 and not math.isnan(row2[column]):
+                    for i in range(-1000, 1000, 10):
+                        x = i * 0.001
+                        if not column + ">" + str(i) in count_data:
+                            count_data[column + ">" + str(i)] = []
+                            count_data[column + "<" + str(i)] = []
+                        if row2[column] > x:
+                            count_data[column + ">" + str(i)].append(row2["75営業日後騰落率"])
+                        if row2[column] < x:
+                            count_data[column + "<" + str(i)].append(row2["75営業日後騰落率"])
+            continue
+            for column in ["25日平均変動率", "25日平均変動率差"]:
+                if column in row2 and not math.isnan(row2[column]):
+                    for i in range(-1000, 1000, 10):
+                        x = i * 0.00001
+                        if not column + ">" + str(i) in count_data:
+                            count_data[column + ">" + str(i)] = []
+                            count_data[column + "<" + str(i)] = []
+                        if row2[column] > x:
+                            count_data[column + ">" + str(i)].append(row2["75営業日後騰落率"])
+                        if row2[column] < x:
+                            count_data[column + "<" + str(i)].append(row2["75営業日後騰落率"])
+
+            # 高いほどよい
             row2["40営業日前株価率"] = None
             if "40営業日前株価" in row2 and not math.isnan(row2["40営業日前株価"]):
                 row2["40営業日前株価率"] = row2["40営業日前株価"] / row2["終値"]
             row2["60営業日前株価率"] = None
             if "60営業日前株価" in row2 and not math.isnan(row2["60営業日前株価"]):
                 row2["60営業日前株価率"] = row2["60営業日前株価"] / row2["終値"]
-            for column in ["乖離率（25日平均）", "25日平均変動率", "25日平均変動率差", "75日平均変動率", "75日平均変動率差"]:
-                if column in row2 and not math.isnan(row2[column]):
-                    for i in range(-500, 500, 5):
-                        x = i * 0.001
-                        if not column + ">" + str(i) in count_data:
-                            count_data[column + ">" + str(i)] = []
-                            count_data[column + "<" + str(i)] = []
-                        if row2[column] > x:
-                            count_data[column + ">" + str(i)].append(row2["40営業日後騰落率"])
-                        if row2[column] < x:
-                            count_data[column + "<" + str(i)].append(row2["40営業日後騰落率"])
-            for column in ["40営業日前株価率", "60営業日前株価率",]:
-                if column in row2 and not math.isnan(row2[column]):
+            for column in ["40営業日前株価率", "60営業日前株価率"]:
+                if column in row2 and row2[column] is not None and not math.isnan(row2[column]):
                     d = 1 - row2[column]
-                    for i in range(-500, 500, 5):
+                    for i in range(-1000, 1000, 10):
                         x = i * 0.001
                         if not column + ">" + str(i) in count_data:
                             count_data[column + ">" + str(i)] = []
                             count_data[column + "<" + str(i)] = []
                         if d > x:
-                            count_data[column + ">" + str(i)].append(row2["40営業日後騰落率"])
+                            count_data[column + ">" + str(i)].append(row2["75営業日後騰落率"])
                         if d < x:
-                            count_data[column + "<" + str(i)].append(row2["40営業日後騰落率"])
+                            count_data[column + "<" + str(i)].append(row2["75営業日後騰落率"])
 
         #
         # if index2 - 60 > 0:
@@ -95,8 +110,8 @@ def analyze(code):
         #             if not key in count_data:
         #                 count_data[key] = []
         #             if key in row2 and row2[key] == True:
-        #                 count_data[key].append(row2["40営業日後騰落率"])
-        #         count_data["all2"].append(row2["40営業日後騰落率"])
+        #                 count_data[key].append(row2["75営業日後騰落率"])
+        #         count_data["all2"].append(row2["75営業日後騰落率"])
         #
         #         if not math.isnan(row2["乖離率（25日平均）"]):
         #             for i in range(-20, 10):
@@ -105,9 +120,9 @@ def analyze(code):
         #                     count_data["ほげ1" + str(i)] = []
         #                     count_data["ほげ2" + str(i)] = []
         #                 if row2["乖離率（75日平均）"] > x:
-        #                     count_data["ほげ1" + str(i)].append(row2["40営業日後騰落率"])
+        #                     count_data["ほげ1" + str(i)].append(row2["75営業日後騰落率"])
         #                 if row2["乖離率（75日平均）"] < x:
-        #                     count_data["ほげ2" + str(i)].append(row2["40営業日後騰落率"])
+        #                     count_data["ほげ2" + str(i)].append(row2["75営業日後騰落率"])
 
             #2021/1/1～のデータだと乖離率が大きいほうが儲けが出やすい状態
             # この期間は全体が上昇傾向なのは影響してそう
@@ -116,15 +131,15 @@ def analyze(code):
             # if not "ほげ" in count_data2:
             #     count_data2["ほげ"] = []
             # if "25日平均上昇場" in row2 and "75日平均上昇場" in row2 and "25日平均上昇陰りポイント" in row2 and not row2["25日平均上昇場"]and not row2["75日平均上昇場"] and not row2["25日平均上昇陰りポイント"]:
-            #     count_data2["ほげ"].append(row2["40営業日後騰落率"])
+            #     count_data2["ほげ"].append(row2["75営業日後騰落率"])
             #
             # if not "ほげ2" in count_data2:
             #     count_data2["ほげ2"] = []
             # if "25日平均上昇場" in row2 and "25日平均上昇陰りポイント" in row2 and not row2["25日平均上昇場"] and not row2["25日平均上昇陰りポイント"]:
-            #     count_data2["ほげ2"].append(row2["40営業日後騰落率"])
+            #     count_data2["ほげ2"].append(row2["75営業日後騰落率"])
 
 future_list = []
-with futures.ThreadPoolExecutor(max_workers=48) as executor:
+with futures.ThreadPoolExecutor(max_workers=24) as executor:
     for index, row in df_stock.iterrows():
         future_list.append(executor.submit(analyze, code=str(row["コード"])))
     for future in futures.as_completed(future_list):
@@ -145,10 +160,11 @@ for column in ["all", "all2", "25日平均上昇場", "75日平均上昇場"]:
     print("勝率：" + str(c / len(count_data[column])))
     print(len(count_data[column]))
 
-for column in ["乖離率（25日平均）", "乖離率（75日平均）", "40営業日前株価率", "60営業日前株価率", "25日平均変動率", "25日平均変動率差", "75日平均変動率", "75日平均変動率差"]:
+# for column in ["乖離率（25日平均）", "乖離率（75日平均）", "40営業日前株価率", "60営業日前株価率", "25日平均変動率", "25日平均変動率差", "75日平均変動率", "75日平均変動率差"]:
+for column in ["乖離率（25日平均）", "乖離率（75日平均）"]:
 
     print("種類,平均,中央地,勝率,件数")
-    for i in range(-500, 500, 5):
+    for i in range(-1000, 1000, 10):
         disp = []
         co = column + ">" + str(i)
         l = len(count_data[co])
